@@ -17,12 +17,34 @@ class FullScorecardScreen extends StatelessWidget {
             .doc(matchId)
             .snapshots(),
         builder: (context, matchSnap) {
-          if (!matchSnap.hasData) {
+          // ✅ IMPROVEMENT: Better error handling
+          if (matchSnap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
+          if (matchSnap.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text('Error loading scorecard'),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Go Back'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          if (!matchSnap.hasData || matchSnap.data?.data() == null) {
+            return const Center(child: Text('No match data available'));
+          }
+
           final match = matchSnap.data!.data() as Map<String, dynamic>;
-          final int currentInning = _i(match['currentInning']);
 
           return StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -33,38 +55,51 @@ class FullScorecardScreen extends StatelessWidget {
                 .orderBy('ballNumber')
                 .snapshots(),
             builder: (context, ballsSnap) {
-              if (!ballsSnap.hasData || ballsSnap.data!.docs.isEmpty) {
-                return const Center(child: Text('No data available'));
+              if (!ballsSnap.hasData) {
+                return const Center(child: CircularProgressIndicator());
               }
 
-              final allBalls =
-              ballsSnap.data!.docs.map((e) => e.data() as Map).toList();
+              if (ballsSnap.data!.docs.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.info_outline, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text('No balls bowled yet'),
+                    ],
+                  ),
+                );
+              }
 
-              final ballsInning1 =
-              allBalls.where((b) => b['inning'] == 0).toList();
-              final ballsInning2 =
-              allBalls.where((b) => b['inning'] == 1).toList();
-              final String teamAName =
-                  match['teamA']['name'] ?? 'Team A';
-              final String teamBName =
-                  match['teamB']['name'] ?? 'Team B';
+              final allBalls = ballsSnap.data!.docs
+                  .map((e) => e.data() as Map<String, dynamic>)
+                  .toList();
 
-// First innings batting team
-              final String firstInningsTeam =
-              match['firstBattingTeam'] != null
-                  ? match[match['firstBattingTeam']]['name']
-                  : teamAName;
+              final ballsInning1 = allBalls.where((b) => b['inning'] == 0).toList();
+              final ballsInning2 = allBalls.where((b) => b['inning'] == 1).toList();
 
-// Second innings batting team (opposite)
-              final String secondInningsTeam =
-              firstInningsTeam == teamAName ? teamBName : teamAName;
+              final String teamAName = match['teamA']['name'] ?? 'Team A';
+              final String teamBName = match['teamB']['name'] ?? 'Team B';
 
+              // ✅ BUG FIX #2: Get first batting team from saved field
+              final String firstInningsTeam = match['firstBattingTeam'] != null
+                  ? match[match['firstBattingTeam']]['name'] ?? teamAName
+                  : (match['toss']?['battingTeam'] != null
+                  ? match[match['toss']['battingTeam']]['name'] ?? teamAName
+                  : teamAName);
+
+              final String secondInningsTeam = firstInningsTeam == teamAName ? teamBName : teamAName;
 
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Match Header
+                    _matchHeader(match),
+                    const SizedBox(height: 16),
+
                     // ================= FIRST INNINGS =================
                     if (ballsInning1.isNotEmpty) ...[
                       _inningsHeader(
@@ -85,7 +120,7 @@ class FullScorecardScreen extends StatelessWidget {
                       const SizedBox(height: 30),
                     ],
 
-// ================= SECOND INNINGS =================
+                    // ================= SECOND INNINGS =================
                     if (ballsInning2.isNotEmpty) ...[
                       _inningsHeader(
                         title: '2nd Innings',
@@ -104,16 +139,100 @@ class FullScorecardScreen extends StatelessWidget {
                       _fowList(_buildFallOfWickets(ballsInning2)),
                     ],
 
+                    // Match Result
+                    if (match['winner'] != null) ...[
+                      const SizedBox(height: 30),
+                      _matchResult(match),
+                    ],
                   ],
                 ),
               );
             },
           );
-
         },
       ),
     );
   }
+
+  Widget _matchHeader(Map<String, dynamic> match) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green.shade400, Colors.green.shade700],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            match['matchName'] ?? 'Match',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            match['location'] ?? '',
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _matchResult(Map<String, dynamic> match) {
+    final String? winner = match['winner'];
+    final String winnerName = match['winnerName'] ?? 'Unknown';
+
+    if (winner == null) return const SizedBox();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.amber.shade300, Colors.orange.shade600],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.emoji_events, color: Colors.white, size: 48),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Match Result',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white70,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$winnerName WINS!',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _inningsHeader({
     required String title,
     required String teamName,
@@ -151,9 +270,6 @@ class FullScorecardScreen extends StatelessWidget {
     );
   }
 
-
-  /* ====================== UI HELPERS ====================== */
-
   Widget _sectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -170,8 +286,10 @@ class FullScorecardScreen extends StatelessWidget {
     final Map<String, Map<String, dynamic>> stats = {};
 
     for (final b in balls) {
-      final String uid = b['batsmanUid'];
-      final String name = b['batsmanName'];
+      final String uid = b['batsmanUid'] ?? '';
+      final String name = b['batsmanName'] ?? 'Unknown';
+
+      if (uid.isEmpty) continue;
 
       stats.putIfAbsent(uid, () {
         return {
@@ -197,6 +315,10 @@ class FullScorecardScreen extends StatelessWidget {
   }
 
   Widget _battingTable(Map<String, Map<String, dynamic>> stats) {
+    if (stats.isEmpty) {
+      return const Center(child: Text('No batting data'));
+    }
+
     return Table(
       border: TableBorder.all(color: Colors.grey.shade300),
       columnWidths: const {
@@ -233,8 +355,10 @@ class FullScorecardScreen extends StatelessWidget {
     final Map<String, Map<String, dynamic>> stats = {};
 
     for (final b in balls) {
-      final String uid = b['bowlerUid'];
-      final String name = b['bowlerName'];
+      final String uid = b['bowlerUid'] ?? '';
+      final String name = b['bowlerName'] ?? 'Unknown';
+
+      if (uid.isEmpty) continue;
 
       stats.putIfAbsent(uid, () {
         return {
@@ -254,6 +378,10 @@ class FullScorecardScreen extends StatelessWidget {
   }
 
   Widget _bowlingTable(Map<String, Map<String, dynamic>> stats) {
+    if (stats.isEmpty) {
+      return const Center(child: Text('No bowling data'));
+    }
+
     return Table(
       border: TableBorder.all(color: Colors.grey.shade300),
       columnWidths: const {
@@ -267,15 +395,15 @@ class FullScorecardScreen extends StatelessWidget {
         _tableRow(['Bowler', 'O', 'R', 'W', 'Econ'], isHeader: true),
         ...stats.values.map((s) {
           final int balls = s['balls'];
-          final int completeOvers = balls ~/ 6;  // Complete overs
-          final int remainingBalls = balls % 6;   // Remaining balls
-          final String oversDisplay = '$completeOvers.$remainingBalls';  // Cricket format
-          final double actualOvers = balls / 6;  // For economy calculation
+          final int completeOvers = balls ~/ 6;
+          final int remainingBalls = balls % 6;
+          final String oversDisplay = '$completeOvers.$remainingBalls';
+          final double actualOvers = balls / 6;
           final double econ = actualOvers == 0 ? 0 : s['runs'] / actualOvers;
 
           return _tableRow([
             s['name'],
-            oversDisplay,  // Now shows 0.4 for 4 balls, not 0.7
+            oversDisplay,
             s['runs'].toString(),
             s['wickets'].toString(),
             econ.toStringAsFixed(2),
@@ -296,7 +424,8 @@ class FullScorecardScreen extends StatelessWidget {
       score += _i(b['runs']);
       if (b['isWicket'] == true) {
         wickets++;
-        fow.add('$score/$wickets (${b['batsmanName']})');
+        final String batsmanName = b['batsmanName'] ?? 'Unknown';
+        fow.add('$score/$wickets ($batsmanName)');
       }
     }
 
@@ -304,7 +433,9 @@ class FullScorecardScreen extends StatelessWidget {
   }
 
   Widget _fowList(List<String> fow) {
-    if (fow.isEmpty) return const Text('No wickets');
+    if (fow.isEmpty) {
+      return const Text('No wickets');
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -321,8 +452,7 @@ class FullScorecardScreen extends StatelessWidget {
 
   TableRow _tableRow(List<String> cells, {bool isHeader = false}) {
     return TableRow(
-      decoration:
-      isHeader ? BoxDecoration(color: Colors.grey.shade200) : null,
+      decoration: isHeader ? BoxDecoration(color: Colors.grey.shade200) : null,
       children: cells
           .map(
             (c) => Padding(
@@ -331,8 +461,7 @@ class FullScorecardScreen extends StatelessWidget {
             c,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontWeight:
-              isHeader ? FontWeight.bold : FontWeight.normal,
+              fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
             ),
           ),
         ),

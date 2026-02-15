@@ -10,6 +10,7 @@ class HostMatchScreen extends StatefulWidget {
 }
 
 class _HostMatchScreenState extends State<HostMatchScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _matchNameController = TextEditingController();
   final _locationController = TextEditingController();
   final _oversController = TextEditingController(text: '20');
@@ -17,64 +18,6 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
 
   String _ballType = 'Tennis';
   bool _isLoading = false;
-
-  Future<void> _createMatch() async {
-    if (_matchNameController.text.isEmpty ||
-        _locationController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Match name and location are required')),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final matchesRef = FirebaseFirestore.instance.collection('matches');
-
-    try {
-      final docRef = matchesRef.doc();
-
-      await docRef.set({
-        'matchId': docRef.id,
-        'hostId': uid,
-        'matchName': _matchNameController.text.trim(),
-        'location': _locationController.text.trim(),
-        'matchType': 'Limited Overs',
-        'overs': int.parse(_oversController.text),
-        'ballType': _ballType,
-        'playersPerTeam': int.parse(_playersPerTeamController.text),
-        'status': 'scheduled',
-        'teamA': {
-          'name': 'Team A',
-          'players': [],
-        },
-        'teamB': {
-          'name': 'Team B',
-          'players': [],
-        },
-        'toss': {
-          'winner': null,
-          'decision': null,
-        },
-        'currentInning': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      if (mounted) {
-        Navigator.pop(context); // return to Home
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to create match')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
 
   @override
   void dispose() {
@@ -85,59 +28,304 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
     super.dispose();
   }
 
+  Future<void> _createMatch() async {
+    // ✅ IMPROVEMENT: Validate form before proceeding
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User not authenticated')),
+        );
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    final matchesRef = FirebaseFirestore.instance.collection('matches');
+
+    try {
+      final docRef = matchesRef.doc();
+
+      // ✅ BUG FIX #3: Use 'created' status to match match_details_screen.dart
+      await docRef.set({
+        'matchId': docRef.id,
+        'hostId': uid,
+        'matchName': _matchNameController.text.trim(),
+        'location': _locationController.text.trim(),
+        'matchType': 'Limited Overs',
+        'overs': int.parse(_oversController.text),
+        'ballType': _ballType,
+        'playersPerTeam': int.parse(_playersPerTeamController.text),
+        'status': 'created', // ✅ Changed from 'scheduled'
+        'isTeamLocked': false, // ✅ Explicitly set
+        'teamA': {
+          'name': 'Team A',
+          'players': [],
+        },
+        'teamB': {
+          'name': 'Team B',
+          'players': [],
+        },
+        'currentInning': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Match created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        Navigator.pop(context);
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Firebase error: ${e.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create match: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Host a Match')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _matchNameController,
-              decoration: const InputDecoration(labelText: 'Match Name'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _locationController,
-              decoration: const InputDecoration(labelText: 'Location / Ground'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _oversController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Overs'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _playersPerTeamController,
-              keyboardType: TextInputType.number,
-              decoration:
-              const InputDecoration(labelText: 'Players Per Team'),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _ballType,
-              items: const [
-                DropdownMenuItem(value: 'Tennis', child: Text('Tennis')),
-                DropdownMenuItem(value: 'Leather', child: Text('Leather')),
-              ],
-              onChanged: (value) => setState(() => _ballType = value!),
-              decoration: const InputDecoration(labelText: 'Ball Type'),
-            ),
-            const SizedBox(height: 24),
-            _isLoading
-                ? const CircularProgressIndicator()
-                : SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _createMatch,
-                child: const Text('Create Match'),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ✅ IMPROVEMENT: Changed to TextFormField with validation
+                  TextFormField(
+                    controller: _matchNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Match Name',
+                      hintText: 'e.g., Sunday League Match',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.sports_cricket),
+                    ),
+                    validator: _validateMatchName,
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+
+                  TextFormField(
+                    controller: _locationController,
+                    decoration: const InputDecoration(
+                      labelText: 'Location / Ground',
+                      hintText: 'e.g., City Cricket Ground',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.location_on),
+                    ),
+                    validator: _validateLocation,
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+
+                  TextFormField(
+                    controller: _oversController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Overs',
+                      hintText: 'Number of overs per innings',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.timer),
+                    ),
+                    validator: _validateOvers,
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+
+                  TextFormField(
+                    controller: _playersPerTeamController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Players Per Team',
+                      hintText: '2 to 11 players',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.people),
+                    ),
+                    validator: _validatePlayersPerTeam,
+                    textInputAction: TextInputAction.done,
+                  ),
+                  const SizedBox(height: 16),
+
+                  DropdownButtonFormField<String>(
+                    value: _ballType,
+                    decoration: const InputDecoration(
+                      labelText: 'Ball Type',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.sports_baseball),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'Tennis', child: Text('Tennis Ball')),
+                      DropdownMenuItem(value: 'Leather', child: Text('Leather Ball')),
+                    ],
+                    onChanged: (value) => setState(() => _ballType = value!),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ✅ IMPROVEMENT: Better button styling
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _createMatch,
+                      icon: const Icon(Icons.add_circle),
+                      label: const Text(
+                        'Create Match',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Info card
+                  Card(
+                    color: Colors.blue.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue.shade700),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'You can edit team names and add players after creating the match.',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+
+          // Loading overlay
+          if (_isLoading)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Creating match...'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
+  }
+
+  // ✅ IMPROVEMENT: Validation functions
+  String? _validateMatchName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Match name is required';
+    }
+    if (value.trim().length < 3) {
+      return 'Match name must be at least 3 characters';
+    }
+    if (value.trim().length > 50) {
+      return 'Match name must be less than 50 characters';
+    }
+    return null;
+  }
+
+  String? _validateLocation(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Location is required';
+    }
+    if (value.trim().length < 3) {
+      return 'Location must be at least 3 characters';
+    }
+    if (value.trim().length > 50) {
+      return 'Location must be less than 50 characters';
+    }
+    return null;
+  }
+
+  String? _validateOvers(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Overs is required';
+    }
+
+    final overs = int.tryParse(value);
+    if (overs == null) {
+      return 'Please enter a valid number';
+    }
+    if (overs < 1) {
+      return 'Minimum 1 over required';
+    }
+    if (overs > 50) {
+      return 'Maximum 50 overs allowed';
+    }
+    return null;
+  }
+
+  String? _validatePlayersPerTeam(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Number of players is required';
+    }
+
+    final players = int.tryParse(value);
+    if (players == null) {
+      return 'Please enter a valid number';
+    }
+    if (players < 2) {
+      return 'Minimum 2 players required';
+    }
+    if (players > 11) {
+      return 'Maximum 11 players allowed';
+    }
+    return null;
   }
 }
