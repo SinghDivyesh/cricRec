@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "528355411283",
+    "project_id": "cric-rec",
+    "storage_bucket": "cric-rec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:528355411283:android:6af81f77b0bcea46fa4da6",
+        "android_client_info": {
+          "package_name": "com.example.cric_rec"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "528355411283-d9dvor26mcsl6aapgiml750deiktpnq8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.cric_rec",
+            "certificate_hash": "ba877149250910e2e8f8485a73b8004b02db6399"
+          }
+        },
+        {
+          "client_id": "528355411283-5krhqe9hrk52ft8mnbh5f7307kffha7u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCcyMPVvEshyKTGxVpSX3GilKGaIlxwD7I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "528355411283-5krhqe9hrk52ft8mnbh5f7307kffha7u.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "528355411283-6ch8d3h44ebbu2t88scbhi3sb0tip49a.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.cricRec"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
