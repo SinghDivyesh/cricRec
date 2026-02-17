@@ -299,6 +299,7 @@ class FullScorecardScreen extends StatelessWidget {
           'fours': 0,
           'sixes': 0,
           'out': false,
+          'dismissal': null, // ✅ NEW: Store dismissal info
         };
       });
 
@@ -308,7 +309,12 @@ class FullScorecardScreen extends StatelessWidget {
       if (legal) stats[uid]!['balls'] += 1;
       if (_i(b['runs']) == 4) stats[uid]!['fours'] += 1;
       if (_i(b['runs']) == 6) stats[uid]!['sixes'] += 1;
-      if (b['isWicket'] == true) stats[uid]!['out'] = true;
+
+      // ✅ NEW: Store dismissal information
+      if (b['isWicket'] == true) {
+        stats[uid]!['out'] = true;
+        stats[uid]!['dismissal'] = b['dismissalText'] ?? 'Wicket';
+      }
     }
 
     return stats;
@@ -319,33 +325,105 @@ class FullScorecardScreen extends StatelessWidget {
       return const Center(child: Text('No batting data'));
     }
 
-    return Table(
-      border: TableBorder.all(color: Colors.grey.shade300),
-      columnWidths: const {
-        0: FlexColumnWidth(3),
-        1: FlexColumnWidth(),
-        2: FlexColumnWidth(),
-        3: FlexColumnWidth(),
-        4: FlexColumnWidth(),
-        5: FlexColumnWidth(),
-      },
-      children: [
-        _tableRow(['Batsman', 'R', 'B', '4s', '6s', 'SR'], isHeader: true),
-        ...stats.values.map((s) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        columnSpacing: 16,
+        headingRowHeight: 40,
+        dataRowHeight: 50,
+        border: TableBorder.all(color: Colors.grey.shade300),
+        headingRowColor: MaterialStateProperty.all(Colors.grey.shade200),
+        columns: const [
+          DataColumn(
+            label: Text(
+              'Batsman',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'R',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'B',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              '4s',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              '6s',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'SR',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+        rows: stats.values.map((s) {
           final int runs = s['runs'];
           final int balls = s['balls'];
           final double sr = balls == 0 ? 0 : (runs / balls) * 100;
+          final bool isOut = s['out'] ?? false;
+          final String? dismissal = s['dismissal'];
 
-          return _tableRow([
-            s['name'],
-            runs.toString(),
-            balls.toString(),
-            s['fours'].toString(),
-            s['sixes'].toString(),
-            sr.toStringAsFixed(1),
-          ]);
-        }),
-      ],
+          return DataRow(
+            cells: [
+              DataCell(
+                SizedBox(
+                  width: 150,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        s['name'],
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (isOut && dismissal != null)
+                        Text(
+                          dismissal,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey[600],
+                            fontStyle: FontStyle.italic,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      else if (!isOut)
+                        Text(
+                          'not out',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.green[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              DataCell(Text(runs.toString())),
+              DataCell(Text(balls.toString())),
+              DataCell(Text(s['fours'].toString())),
+              DataCell(Text(s['sixes'].toString())),
+              DataCell(Text(sr.toStringAsFixed(1))),
+            ],
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -366,12 +444,29 @@ class FullScorecardScreen extends StatelessWidget {
           'runs': 0,
           'balls': 0,
           'wickets': 0,
+          'maidens': 0,
+          'wides': 0,
+          'noBalls': 0,
         };
       });
 
       stats[uid]!['runs'] += _i(b['runs']);
-      if (b['extra'] == null) stats[uid]!['balls'] += 1;
-      if (b['isWicket'] == true) stats[uid]!['wickets'] += 1;
+
+      if (b['extra'] == null) {
+        stats[uid]!['balls'] += 1;
+      } else if (b['extra'] == 'wide') {
+        stats[uid]!['wides'] += 1;
+      } else if (b['extra'] == 'no-ball') {
+        stats[uid]!['noBalls'] += 1;
+      }
+
+      if (b['isWicket'] == true) {
+        // ✅ Only count if bowler gets credit
+        final bool bowlerGetsCredit = b['bowlerGetsCredit'] ?? true;
+        if (bowlerGetsCredit) {
+          stats[uid]!['wickets'] += 1;
+        }
+      }
     }
 
     return stats;
@@ -382,18 +477,59 @@ class FullScorecardScreen extends StatelessWidget {
       return const Center(child: Text('No bowling data'));
     }
 
-    return Table(
-      border: TableBorder.all(color: Colors.grey.shade300),
-      columnWidths: const {
-        0: FlexColumnWidth(3),
-        1: FlexColumnWidth(),
-        2: FlexColumnWidth(),
-        3: FlexColumnWidth(),
-        4: FlexColumnWidth(),
-      },
-      children: [
-        _tableRow(['Bowler', 'O', 'R', 'W', 'Econ'], isHeader: true),
-        ...stats.values.map((s) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        columnSpacing: 16,
+        headingRowHeight: 40,
+        dataRowHeight: 50,
+        border: TableBorder.all(color: Colors.grey.shade300),
+        headingRowColor: MaterialStateProperty.all(Colors.grey.shade200),
+        columns: const [
+          DataColumn(
+            label: Text(
+              'Bowler',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'O',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'R',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'W',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'Econ',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'Wd',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          DataColumn(
+            label: Text(
+              'Nb',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+        rows: stats.values.map((s) {
           final int balls = s['balls'];
           final int completeOvers = balls ~/ 6;
           final int remainingBalls = balls % 6;
@@ -401,22 +537,36 @@ class FullScorecardScreen extends StatelessWidget {
           final double actualOvers = balls / 6;
           final double econ = actualOvers == 0 ? 0 : s['runs'] / actualOvers;
 
-          return _tableRow([
-            s['name'],
-            oversDisplay,
-            s['runs'].toString(),
-            s['wickets'].toString(),
-            econ.toStringAsFixed(2),
-          ]);
-        }),
-      ],
+          return DataRow(
+            cells: [
+              DataCell(
+                SizedBox(
+                  width: 120,
+                  child: Text(
+                    s['name'],
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              DataCell(Text(oversDisplay)),
+              DataCell(Text(s['runs'].toString())),
+              DataCell(Text(s['wickets'].toString())),
+              DataCell(Text(econ.toStringAsFixed(2))),
+              DataCell(Text(s['wides'].toString())),
+              DataCell(Text(s['noBalls'].toString())),
+            ],
+          );
+        }).toList(),
+      ),
     );
   }
 
+
   /* ====================== FALL OF WICKETS ====================== */
 
-  List<String> _buildFallOfWickets(List<Map> balls) {
-    final List<String> fow = [];
+  List<Map<String, String>> _buildFallOfWickets(List<Map> balls) {
+    final List<Map<String, String>> fow = [];
     int score = 0;
     int wickets = 0;
 
@@ -424,29 +574,93 @@ class FullScorecardScreen extends StatelessWidget {
       score += _i(b['runs']);
       if (b['isWicket'] == true) {
         wickets++;
-        final String batsmanName = b['batsmanName'] ?? 'Unknown';
-        fow.add('$score/$wickets ($batsmanName)');
+        final String dismissal = b['dismissalText'] ??
+            b['batsmanName'] ??
+            'Unknown';
+        final int over = _i(b['over']);
+        final int ballInOver = _i(b['ballInOver']);
+
+        fow.add({
+          'score': '$score/$wickets',
+          'dismissal': dismissal,
+          'over': '${over + 1}.$ballInOver',
+        });
       }
     }
 
     return fow;
   }
 
-  Widget _fowList(List<String> fow) {
+  Widget _fowList(List<Map<String, String>> fow) {
     if (fow.isEmpty) {
-      return const Text('No wickets');
+      return const Padding(
+        padding: EdgeInsets.all(8),
+        child: Text('No wickets'),
+      );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: fow
-          .map((e) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Text('• $e'),
-      ))
-          .toList(),
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: fow.length,
+      itemBuilder: (context, index) {
+        final wicket = fow[index];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.red.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.red.shade200),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade700,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  wicket['score']!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      wicket['dismissal']!,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Over: ${wicket['over']}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
+
 
   /* ====================== TABLE ROW ====================== */
 

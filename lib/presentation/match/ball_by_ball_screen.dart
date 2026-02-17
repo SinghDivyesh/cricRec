@@ -3,6 +3,55 @@ import 'package:cric_rec/presentation/match/full_scorecard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/* =========================== WICKET TYPES =========================== */
+
+enum WicketType {
+  bowled,
+  caught,
+  lbw,
+  stumped,
+  runOut,
+  hitWicket,
+  hitBallTwice,
+  obstructingField,
+  timedOut,
+  retired,
+}
+
+String getWicketTypeLabel(WicketType type) {
+  switch (type) {
+    case WicketType.bowled:
+      return 'Bowled';
+    case WicketType.caught:
+      return 'Caught';
+    case WicketType.lbw:
+      return 'LBW';
+    case WicketType.stumped:
+      return 'Stumped';
+    case WicketType.runOut:
+      return 'Run Out';
+    case WicketType.hitWicket:
+      return 'Hit Wicket';
+    case WicketType.hitBallTwice:
+      return 'Hit Ball Twice';
+    case WicketType.obstructingField:
+      return 'Obstructing Field';
+    case WicketType.timedOut:
+      return 'Timed Out';
+    case WicketType.retired:
+      return 'Retired Hurt';
+  }
+}
+
+// Check if bowler gets credit for this wicket type
+bool doesBowlerGetCredit(WicketType type) {
+  return type == WicketType.bowled ||
+      type == WicketType.caught ||
+      type == WicketType.lbw ||
+      type == WicketType.stumped ||
+      type == WicketType.hitWicket;
+}
+
 class BallByBallScreen extends StatefulWidget {
   final String matchId;
   const BallByBallScreen({super.key, required this.matchId});
@@ -77,7 +126,8 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
           final int balls = _i(innings['balls']);
 
           // ✅ BUG FIX #1: Dialog state management with unique identifier
-          final currentState = '${innings['awaitingBowler']}_${innings['awaitingBatsman']}_$balls';
+          final currentState =
+              '${innings['awaitingBowler']}_${innings['awaitingBatsman']}_$balls';
 
           if (_lastProcessedDialogState != currentState) {
             _lastProcessedDialogState = currentState;
@@ -106,7 +156,6 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
             top: false,
             child: Column(
               children: [
-                // ✅ IMPROVEMENT: Fixed layout with Flexible instead of hardcoded heights
                 Flexible(
                   flex: 0,
                   child: Container(
@@ -185,50 +234,53 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
                 // ✅ IMPROVEMENT: Flexible controls section
                 Flexible(
                   flex: 0,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minHeight: 180,
-                      maxHeight: 250,
-                    ),
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (winner != null && inningsNumber == 2)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: _winnerBanner(matchData, winner),
-                              ),
-
-                            _runButtons(
-                              context,
-                              matchData,
-                              inningsCompleted || (inningsNumber == 2 && winner != null),
+                  // child: ConstrainedBox(
+                  //   constraints: const BoxConstraints(
+                  //     minHeight: 180,
+                  //     maxHeight: 280,
+                  //   ),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (winner != null && inningsNumber == 2)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: _winnerBanner(matchData, winner),
                             ),
-                            const SizedBox(height: 6),
 
-                            _extrasRow(
-                              context,
-                              matchData,
-                              inningsCompleted || (inningsNumber == 2 && winner != null),
-                            ),
-                            const SizedBox(height: 6),
+                          _runButtons(
+                            context,
+                            matchData,
+                            inningsCompleted ||
+                                (inningsNumber == 2 && winner != null),
+                          ),
+                          const SizedBox(height: 6),
 
-                            _wicketButton(
-                              context,
-                              matchData,
-                              inningsCompleted || (inningsNumber == 2 && winner != null),
-                            ),
-                            const SizedBox(height: 6),
+                          _extrasRow(
+                            context,
+                            matchData,
+                            inningsCompleted ||
+                                (inningsNumber == 2 && winner != null),
+                          ),
+                          const SizedBox(height: 6),
 
-                            _undoButton(),
-                          ],
-                        ),
+                          _wicketButton(
+                            context,
+                            matchData,
+                            inningsCompleted ||
+                                (inningsNumber == 2 && winner != null),
+                          ),
+                          const SizedBox(height: 6),
+
+                          _undoButton(),
+                        ],
                       ),
                     ),
                   ),
+                  //),
                 ),
               ],
             ),
@@ -240,15 +292,387 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
 
   /* =========================== UI WIDGETS =========================== */
 
+  /* =========================== WICKET DIALOG =========================== */
+
+  Future<Map<String, dynamic>?> _showWicketDialog(
+    BuildContext context,
+    Map<String, dynamic> match,
+  ) async {
+    final innings = match['innings'];
+    final striker = innings['striker'];
+    final nonStriker = innings['nonStriker'];
+    final bowler = innings['bowler'];
+
+    WicketType? selectedType;
+    String? fielder; // For caught/stumped/run out
+    bool isStrikerOut = true; // For run out
+
+    return await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Wicket!'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Select dismissal type:',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Common wicket types
+                  _buildWicketTypeButton(
+                    context,
+                    'Bowled',
+                    WicketType.bowled,
+                    Icons.sports_cricket,
+                    selectedType,
+                    (type) => setDialogState(() => selectedType = type),
+                  ),
+                  _buildWicketTypeButton(
+                    context,
+                    'Caught',
+                    WicketType.caught,
+                    Icons.pan_tool,
+                    selectedType,
+                    (type) => setDialogState(() => selectedType = type),
+                  ),
+                  _buildWicketTypeButton(
+                    context,
+                    'LBW',
+                    WicketType.lbw,
+                    Icons.block,
+                    selectedType,
+                    (type) => setDialogState(() => selectedType = type),
+                  ),
+                  _buildWicketTypeButton(
+                    context,
+                    'Stumped',
+                    WicketType.stumped,
+                    Icons.flash_on,
+                    selectedType,
+                    (type) => setDialogState(() => selectedType = type),
+                  ),
+                  _buildWicketTypeButton(
+                    context,
+                    'Run Out',
+                    WicketType.runOut,
+                    Icons.directions_run,
+                    selectedType,
+                    (type) => setDialogState(() => selectedType = type),
+                  ),
+                  _buildWicketTypeButton(
+                    context,
+                    'Hit Wicket',
+                    WicketType.hitWicket,
+                    Icons.sports_baseball,
+                    selectedType,
+                    (type) => setDialogState(() => selectedType = type),
+                  ),
+
+                  // Show fielder selection for caught/stumped/run out
+                  if (selectedType == WicketType.caught ||
+                      selectedType == WicketType.stumped ||
+                      selectedType == WicketType.runOut) ...[
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 8),
+
+                    if (selectedType == WicketType.caught)
+                      const Text(
+                        'Caught by:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    else if (selectedType == WicketType.stumped)
+                      const Text(
+                        'Stumped by (Wicket-keeper):',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    else
+                      const Text(
+                        'Run out by:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                    const SizedBox(height: 8),
+
+                    _buildFielderInput(
+                      context,
+                      fielder,
+                      (value) => setDialogState(() => fielder = value),
+                    ),
+                  ],
+
+                  // Run out specific: which batsman is out?
+                  if (selectedType == WicketType.runOut) ...[
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Who is out?',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: RadioListTile<bool>(
+                            title: Text(
+                              striker['name'],
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            subtitle: const Text(
+                              'Striker',
+                              style: TextStyle(fontSize: 10),
+                            ),
+                            value: true,
+                            groupValue: isStrikerOut,
+                            onChanged: (value) {
+                              setDialogState(() => isStrikerOut = value!);
+                            },
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                        Expanded(
+                          child: RadioListTile<bool>(
+                            title: Text(
+                              nonStriker['name'],
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            subtitle: const Text(
+                              'Non-Striker',
+                              style: TextStyle(fontSize: 10),
+                            ),
+                            value: false,
+                            groupValue: isStrikerOut,
+                            onChanged: (value) {
+                              setDialogState(() => isStrikerOut = value!);
+                            },
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  // Show dismissal summary
+                  if (selectedType != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Dismissal:',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _buildDismissalText(
+                              selectedType!,
+                              isStrikerOut ? striker : nonStriker,
+                              bowler,
+                              fielder,
+                            ),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: selectedType == null
+                    ? null
+                    : () {
+                        // Validate fielder name for certain dismissals
+                        if ((selectedType == WicketType.caught ||
+                                selectedType == WicketType.stumped ||
+                                selectedType == WicketType.runOut) &&
+                            (fielder == null || fielder!.trim().isEmpty)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter fielder name'),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                          return;
+                        }
+
+                        Navigator.pop(dialogContext, {
+                          'type': selectedType,
+                          'fielder': fielder?.trim(),
+                          'outBatsman': isStrikerOut ? striker : nonStriker,
+                          'isStrikerOut': isStrikerOut,
+                        });
+                      },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Confirm Wicket'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildWicketTypeButton(
+    BuildContext context,
+    String label,
+    WicketType type,
+    IconData icon,
+    WicketType? selectedType,
+    Function(WicketType) onSelect,
+  ) {
+    final isSelected = selectedType == type;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () => onSelect(type),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.red.shade50 : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? Colors.red.shade400 : Colors.grey.shade300,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.red.shade700 : Colors.grey.shade600,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isSelected ? Colors.red.shade700 : Colors.black87,
+                  ),
+                ),
+              ),
+              if (isSelected)
+                Icon(Icons.check_circle, color: Colors.red.shade700, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFielderInput(
+    BuildContext context,
+    String? currentValue,
+    Function(String) onChanged,
+  ) {
+    return TextFormField(
+      initialValue: currentValue,
+      decoration: InputDecoration(
+        hintText: 'Enter fielder name',
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        filled: true,
+        fillColor: Colors.white,
+      ),
+      style: const TextStyle(fontSize: 14),
+      onChanged: onChanged,
+    );
+  }
+
+  String _buildDismissalText(
+    WicketType type,
+    Map<String, dynamic> batsman,
+    Map<String, dynamic> bowler,
+    String? fielder,
+  ) {
+    final batsmanName = batsman['name'];
+    final bowlerName = bowler['name'];
+
+    switch (type) {
+      case WicketType.bowled:
+        return '$batsmanName b $bowlerName';
+      case WicketType.caught:
+        return '$batsmanName c ${fielder ?? '?'} b $bowlerName';
+      case WicketType.lbw:
+        return '$batsmanName lbw b $bowlerName';
+      case WicketType.stumped:
+        return '$batsmanName st ${fielder ?? '?'} b $bowlerName';
+      case WicketType.runOut:
+        return '$batsmanName run out (${fielder ?? '?'})';
+      case WicketType.hitWicket:
+        return '$batsmanName hit wicket b $bowlerName';
+      case WicketType.hitBallTwice:
+        return '$batsmanName hit ball twice';
+      case WicketType.obstructingField:
+        return '$batsmanName obstructing field';
+      case WicketType.timedOut:
+        return '$batsmanName timed out';
+      case WicketType.retired:
+        return '$batsmanName retired hurt';
+    }
+  }
+
   Widget _inningsIndicator(Map<String, dynamic> matchData) {
     final int inningsNumber = _i(matchData['currentInning']) + 1;
     final String battingTeam = matchData['battingTeam'];
-    final String teamName = matchData[battingTeam]['name'] ?? battingTeam.toUpperCase();
+    final String teamName =
+        matchData[battingTeam]['name'] ?? battingTeam.toUpperCase();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: inningsNumber == 1 ? Colors.blue.shade100 : Colors.green.shade100,
+        color: inningsNumber == 1
+            ? Colors.blue.shade100
+            : Colors.green.shade100,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -256,7 +680,9 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
         children: [
           Icon(
             Icons.sports_cricket,
-            color: inningsNumber == 1 ? Colors.blue.shade700 : Colors.green.shade700,
+            color: inningsNumber == 1
+                ? Colors.blue.shade700
+                : Colors.green.shade700,
             size: 20,
           ),
           const SizedBox(width: 8),
@@ -264,7 +690,9 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
             '${inningsNumber == 1 ? "1st" : "2nd"} Innings - $teamName Batting',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: inningsNumber == 1 ? Colors.blue.shade700 : Colors.green.shade700,
+              color: inningsNumber == 1
+                  ? Colors.blue.shade700
+                  : Colors.green.shade700,
               fontSize: 14,
             ),
           ),
@@ -323,11 +751,7 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
               ],
             ),
           ),
-          Container(
-            width: 2,
-            height: 40,
-            color: Colors.white38,
-          ),
+          Container(width: 2, height: 40, color: Colors.white38),
           Expanded(
             child: Column(
               children: [
@@ -350,11 +774,7 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
               ],
             ),
           ),
-          Container(
-            width: 2,
-            height: 40,
-            color: Colors.white38,
-          ),
+          Container(width: 2, height: 40, color: Colors.white38),
           Expanded(
             child: Column(
               children: [
@@ -383,7 +803,8 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
   }
 
   Widget _winnerBanner(Map<String, dynamic> matchData, String winner) {
-    final String winnerName = matchData[winner]?['name'] ?? winner.toUpperCase();
+    final String winnerName =
+        matchData[winner]?['name'] ?? winner.toUpperCase();
 
     return Container(
       width: double.infinity,
@@ -404,11 +825,7 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.emoji_events,
-            color: Colors.yellow,
-            size: 40,
-          ),
+          const Icon(Icons.emoji_events, color: Colors.yellow, size: 40),
           const SizedBox(height: 6),
           Text(
             '$winnerName WINS!',
@@ -421,10 +838,7 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
           const SizedBox(height: 4),
           Text(
             _getWinMargin(matchData, winner),
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
         ],
       ),
@@ -531,8 +945,13 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
                   final List<Map<String, dynamic>> balls = entry.value;
 
                   // ✅ Calculate runs in this over
-                  final int overRuns = balls.fold(0, (sum, ball) => sum + _i(ball['runs']));
-                  final bool hasWicket = balls.any((ball) => ball['isWicket'] == true);
+                  final int overRuns = balls.fold(
+                    0,
+                    (sum, ball) => sum + _i(ball['runs']),
+                  );
+                  final bool hasWicket = balls.any(
+                    (ball) => ball['isWicket'] == true,
+                  );
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
@@ -651,7 +1070,10 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
     );
   }
 
-  Widget _playersRow(Map<String, dynamic> innings, Map<String, dynamic> matchData) {
+  Widget _playersRow(
+    Map<String, dynamic> innings,
+    Map<String, dynamic> matchData,
+  ) {
     final striker = innings['striker'];
     final nonStriker = innings['nonStriker'];
     final bowler = innings['bowler'];
@@ -717,12 +1139,18 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
           }
         }
 
-        final strikerSR = strikerBalls > 0 ? (strikerRuns / strikerBalls) * 100 : 0.0;
-        final nonStrikerSR = nonStrikerBalls > 0 ? (nonStrikerRuns / nonStrikerBalls) * 100 : 0.0;
+        final strikerSR = strikerBalls > 0
+            ? (strikerRuns / strikerBalls) * 100
+            : 0.0;
+        final nonStrikerSR = nonStrikerBalls > 0
+            ? (nonStrikerRuns / nonStrikerBalls) * 100
+            : 0.0;
 
         final bowlerOvers = bowlerBalls ~/ 6;
         final bowlerBallsInOver = bowlerBalls % 6;
-        final bowlerEcon = bowlerBalls > 0 ? bowlerRuns / (bowlerBalls / 6) : 0.0;
+        final bowlerEcon = bowlerBalls > 0
+            ? bowlerRuns / (bowlerBalls / 6)
+            : 0.0;
 
         return ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 140),
@@ -758,7 +1186,10 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
                   ),
                   const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.purple.shade50,
                       borderRadius: BorderRadius.circular(6),
@@ -766,7 +1197,11 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.sports_cricket, size: 14, color: Colors.deepPurple),
+                        const Icon(
+                          Icons.sports_cricket,
+                          size: 14,
+                          color: Colors.deepPurple,
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -784,7 +1219,10 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
                         ),
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.deepPurple,
                             borderRadius: BorderRadius.circular(4),
@@ -843,10 +1281,7 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
             const SizedBox(height: 2),
             Text(
               '$runs($balls)  SR:${sr.toStringAsFixed(0)}',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade700,
-              ),
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
             ),
           ],
         ),
@@ -855,35 +1290,43 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
   }
 
   Widget _runButtons(
-      BuildContext context,
-      Map<String, dynamic> data,
-      bool disabled,
-      ) {
+    BuildContext context,
+    Map<String, dynamic> data,
+    bool disabled,
+  ) {
     return Wrap(
       spacing: 12,
       children: [0, 1, 2, 3, 4, 6]
-          .map((run) => ElevatedButton(
-        onPressed: disabled ? null : () => _addBall(context, data, runs: run),
-        child: Text(run.toString()),
-      ))
+          .map(
+            (run) => ElevatedButton(
+              onPressed: disabled
+                  ? null
+                  : () => _addBall(context, data, runs: run),
+              child: Text(run.toString()),
+            ),
+          )
           .toList(),
     );
   }
 
   Widget _extrasRow(
-      BuildContext context,
-      Map<String, dynamic> data,
-      bool disabled,
-      ) {
+    BuildContext context,
+    Map<String, dynamic> data,
+    bool disabled,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         OutlinedButton(
-          onPressed: disabled ? null : () => _addBall(context, data, runs: 1, extra: 'wide'),
+          onPressed: disabled
+              ? null
+              : () => _addBall(context, data, runs: 1, extra: 'wide'),
           child: const Text('Wide'),
         ),
         OutlinedButton(
-          onPressed: disabled ? null : () => _addBall(context, data, runs: 1, extra: 'no-ball'),
+          onPressed: disabled
+              ? null
+              : () => _addBall(context, data, runs: 1, extra: 'no-ball'),
           child: const Text('No Ball'),
         ),
       ],
@@ -891,15 +1334,17 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
   }
 
   Widget _wicketButton(
-      BuildContext context,
-      Map<String, dynamic> data,
-      bool disabled,
-      ) {
+    BuildContext context,
+    Map<String, dynamic> data,
+    bool disabled,
+  ) {
     return ElevatedButton.icon(
       icon: const Icon(Icons.close),
       label: const Text('Wicket'),
       style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-      onPressed: disabled ? null : () => _addBall(context, data, isWicket: true),
+      onPressed: disabled
+          ? null
+          : () => _addBallWithWicket(context, data, runs: 0),
     );
   }
 
@@ -907,20 +1352,22 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
     return ElevatedButton.icon(
       icon: const Icon(Icons.undo),
       label: const Text('Undo Last Ball'),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.grey.shade100,
-      ),
+      style: ElevatedButton.styleFrom(backgroundColor: Colors.grey.shade100),
       onPressed: _undoLastBall,
     );
   }
 
   /* =========================== DIALOGS =========================== */
 
-  void _showMatchResultDialog(BuildContext context, Map<String, dynamic> matchData) {
+  void _showMatchResultDialog(
+    BuildContext context,
+    Map<String, dynamic> matchData,
+  ) {
     final String? winner = matchData['winner'];
     if (winner == null) return;
 
-    final String winnerName = matchData[winner]?['name'] ?? winner.toUpperCase();
+    final String winnerName =
+        matchData[winner]?['name'] ?? winner.toUpperCase();
     final String margin = _getWinMargin(matchData, winner);
 
     showDialog(
@@ -951,10 +1398,7 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              margin,
-              style: const TextStyle(fontSize: 16),
-            ),
+            Text(margin, style: const TextStyle(fontSize: 16)),
           ],
         ),
         actions: [
@@ -963,9 +1407,7 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
               Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const HomeScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
               );
             },
             child: const Text('Close'),
@@ -978,19 +1420,25 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
   /* =========================== PLAYER INITIALIZATION =========================== */
 
   Future<void> _initializePlayers(
-      Map<String, dynamic> innings,
-      Map<String, dynamic> matchData,
-      ) async {
+    Map<String, dynamic> innings,
+    Map<String, dynamic> matchData,
+  ) async {
     try {
-      final matchRef = FirebaseFirestore.instance.collection('matches').doc(widget.matchId);
+      final matchRef = FirebaseFirestore.instance
+          .collection('matches')
+          .doc(widget.matchId);
 
       var openingStriker = innings['openingStriker'];
       var openingNonStriker = innings['openingNonStriker'];
       var openingBowler = innings['openingBowler'];
 
-      if (openingStriker == null || openingNonStriker == null || openingBowler == null) {
+      if (openingStriker == null ||
+          openingNonStriker == null ||
+          openingBowler == null) {
         final String battingTeamKey = matchData['battingTeam'];
-        final String bowlingTeamKey = battingTeamKey == 'teamA' ? 'teamB' : 'teamA';
+        final String bowlingTeamKey = battingTeamKey == 'teamA'
+            ? 'teamB'
+            : 'teamA';
 
         final List battingPlayers = matchData[battingTeamKey]['players'] ?? [];
         final List bowlingPlayers = matchData[bowlingTeamKey]['players'] ?? [];
@@ -1026,7 +1474,9 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
 
   // ✅ BUG FIX #4: Undo only works on current innings
   Future<void> _undoLastBall() async {
-    final matchRef = FirebaseFirestore.instance.collection('matches').doc(widget.matchId);
+    final matchRef = FirebaseFirestore.instance
+        .collection('matches')
+        .doc(widget.matchId);
 
     // Get current match state
     final matchSnap = await matchRef.get();
@@ -1045,9 +1495,9 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
 
     if (ballsSnap.docs.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No balls to undo')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No balls to undo')));
       }
       return;
     }
@@ -1128,7 +1578,8 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
 
     // Check if last ball was a wicket (need new batsman)
     if (remainingBallsSnap.docs.isNotEmpty) {
-      final lastRemainingBall = remainingBallsSnap.docs.last.data() as Map<String, dynamic>;
+      final lastRemainingBall =
+          remainingBallsSnap.docs.last.data() as Map<String, dynamic>;
       if (lastRemainingBall['isWicket'] == true) {
         awaitingBatsman = true;
         // Striker should remain as it was before the wicket
@@ -1157,19 +1608,25 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
     _lastProcessedDialogState = null;
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Last ball undone')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Last ball undone')));
     }
   }
 
   Future<void> _addBall(
-      BuildContext context,
-      Map<String, dynamic> match, {
-        int runs = 0,
-        bool isWicket = false,
-        String? extra,
-      }) async {
+    BuildContext context,
+    Map<String, dynamic> match, {
+    int runs = 0,
+    bool isWicket = false,
+    String? extra,
+  }) async {
+    // If it's a wicket, delegate to wicket method
+    if (isWicket) {
+      await _addBallWithWicket(context, match, runs: runs, extra: extra);
+      return;
+    }
+
     final innings = Map<String, dynamic>.from(match['innings']);
     final int currentInning = _i(match['currentInning']);
 
@@ -1204,16 +1661,6 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
       innings['previousBowler'] = innings['bowler'];
     }
 
-    if (isWicket) {
-      wickets++;
-
-      final outPlayers = List.from(innings['outPlayers'] ?? []);
-      outPlayers.add(innings['striker']['uid']);
-      innings['outPlayers'] = outPlayers;
-
-      innings['awaitingBatsman'] = true;
-    }
-
     if (legalBall || extra != null) {
       final int ballNumber = balls;
       final int over = (balls - 1) ~/ 6;
@@ -1224,21 +1671,21 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
           .doc(widget.matchId)
           .collection('balls')
           .add({
-        'inning': currentInning,
-        'ballNumber': ballNumber,
-        'over': over,
-        'ballInOver': ballInOver,
-        'runs': runs,
-        'extra': extra,
-        'isWicket': isWicket,
-        'striker': innings['striker'],
-        'bowler': innings['bowler'],
-        'batsmanUid': innings['striker']['uid'],
-        'batsmanName': innings['striker']['name'],
-        'bowlerUid': innings['bowler']['uid'],
-        'bowlerName': innings['bowler']['name'],
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+            'inning': currentInning,
+            'ballNumber': ballNumber,
+            'over': over,
+            'ballInOver': ballInOver,
+            'runs': runs,
+            'extra': extra,
+            'isWicket': false,
+            'striker': innings['striker'],
+            'bowler': innings['bowler'],
+            'batsmanUid': innings['striker']['uid'],
+            'batsmanName': innings['striker']['name'],
+            'bowlerUid': innings['bowler']['uid'],
+            'bowlerName': innings['bowler']['name'],
+            'timestamp': FieldValue.serverTimestamp(),
+          });
     }
 
     final String battingTeamKey = match['battingTeam'];
@@ -1247,7 +1694,8 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
     final int totalPlayers = (match[battingTeamKey]['players'] as List).length;
 
     final bool isAllOut =
-        innings['outPlayers'] != null && innings['outPlayers'].length >= totalPlayers - 1;
+        innings['outPlayers'] != null &&
+        innings['outPlayers'].length >= totalPlayers - 1;
 
     final bool oversFinished = maxOvers > 0 && (balls ~/ 6) >= maxOvers;
 
@@ -1269,21 +1717,24 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
       winner = bowlingTeamKey;
     }
 
-    await FirebaseFirestore.instance.collection('matches').doc(widget.matchId).update({
-      'innings.runs': totalRuns,
-      'innings.wickets': wickets,
-      'innings.balls': balls,
-      'innings.striker': innings['striker'],
-      'innings.nonStriker': innings['nonStriker'],
-      'innings.outPlayers': innings['outPlayers'] ?? [],
-      'innings.isCompleted': inningsCompleted,
-      'innings.awaitingBowler': inningsCompleted ? false : overCompleted,
-      'innings.awaitingBatsman': inningsCompleted ? false : isWicket,
-      if (winner != null) 'winner': winner,
-      if (winner != null) 'status': 'completed',
-      if (winner != null) 'winnerName': match[winner]['name'],
-      if (winner != null) 'completedAt': FieldValue.serverTimestamp(),
-    });
+    await FirebaseFirestore.instance
+        .collection('matches')
+        .doc(widget.matchId)
+        .update({
+          'innings.runs': totalRuns,
+          'innings.wickets': wickets,
+          'innings.balls': balls,
+          'innings.striker': innings['striker'],
+          'innings.nonStriker': innings['nonStriker'],
+          'innings.outPlayers': innings['outPlayers'] ?? [],
+          'innings.isCompleted': inningsCompleted,
+          'innings.awaitingBowler': inningsCompleted ? false : overCompleted,
+          'innings.awaitingBatsman': false,
+          if (winner != null) 'winner': winner,
+          if (winner != null) 'status': 'completed',
+          if (winner != null) 'winnerName': match[winner]['name'],
+          if (winner != null) 'completedAt': FieldValue.serverTimestamp(),
+        });
 
     if (inningsCompleted && currentInning == 0) {
       debugPrint('First innings completed! Starting second innings...');
@@ -1295,12 +1746,180 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
     _lastProcessedDialogState = null;
   }
 
+  Future<void> _addBallWithWicket(
+    BuildContext context,
+    Map<String, dynamic> match, {
+    int runs = 0,
+    String? extra,
+  }) async {
+    // Show wicket dialog
+    final wicketData = await _showWicketDialog(context, match);
+
+    if (wicketData == null) {
+      // User cancelled
+      return;
+    }
+
+    final WicketType wicketType = wicketData['type'];
+    final String? fielder = wicketData['fielder'];
+    final Map<String, dynamic> outBatsman = wicketData['outBatsman'];
+    final bool isStrikerOut = wicketData['isStrikerOut'];
+
+    final innings = Map<String, dynamic>.from(match['innings']);
+    final int currentInning = _i(match['currentInning']);
+
+    int totalRuns = _i(innings['runs']);
+    int wickets = _i(innings['wickets']);
+    int balls = _i(innings['balls']);
+
+    final int maxOvers = _i(match['overs']);
+    final bool legalBall = extra == null;
+
+    totalRuns += runs;
+    if (legalBall) balls++;
+
+    // Handle run out striker rotation
+    // For run out: if non-striker is out and runs are odd, striker rotates
+    // If striker is out and runs are odd, no rotation (striker already out)
+    if (wicketType == WicketType.runOut) {
+      if (!isStrikerOut && runs.isOdd) {
+        // Non-striker out, odd runs -> rotate
+        final t = innings['striker'];
+        innings['striker'] = innings['nonStriker'];
+        innings['nonStriker'] = t;
+      }
+      // If striker out, no rotation needed
+    } else {
+      // Normal wicket - striker is always out
+      // Rotate on odd runs
+      if (legalBall && runs.isOdd) {
+        final t = innings['striker'];
+        innings['striker'] = innings['nonStriker'];
+        innings['nonStriker'] = t;
+      }
+    }
+
+    final bool overCompleted = legalBall && balls % 6 == 0;
+
+    if (overCompleted) {
+      final t = innings['striker'];
+      innings['striker'] = innings['nonStriker'];
+      innings['nonStriker'] = t;
+
+      innings['awaitingBowler'] = true;
+      innings['previousBowler'] = innings['bowler'];
+    }
+
+    // Add wicket
+    wickets++;
+
+    final outPlayers = List.from(innings['outPlayers'] ?? []);
+    outPlayers.add(outBatsman['uid']);
+    innings['outPlayers'] = outPlayers;
+
+    innings['awaitingBatsman'] = true;
+
+    // Save ball with wicket details
+    if (legalBall || extra != null) {
+      final int ballNumber = balls;
+      final int over = (balls - 1) ~/ 6;
+      final int ballInOver = (balls - 1) % 6 + 1;
+
+      // Build dismissal text
+      final dismissalText = _buildDismissalText(
+        wicketType,
+        outBatsman,
+        innings['bowler'],
+        fielder,
+      );
+
+      await FirebaseFirestore.instance
+          .collection('matches')
+          .doc(widget.matchId)
+          .collection('balls')
+          .add({
+            'inning': currentInning,
+            'ballNumber': ballNumber,
+            'over': over,
+            'ballInOver': ballInOver,
+            'runs': runs,
+            'extra': extra,
+            'isWicket': true,
+            'wicketType': wicketType
+                .toString()
+                .split('.')
+                .last, // 'bowled', 'caught', etc.
+            'dismissalText': dismissalText, // 'Smith c Jones b Brown'
+            'outBatsman': outBatsman,
+            'fielder': fielder,
+            'bowlerGetsCredit': doesBowlerGetCredit(wicketType),
+            'striker': innings['striker'],
+            'bowler': innings['bowler'],
+            'batsmanUid': innings['striker']['uid'],
+            'batsmanName': innings['striker']['name'],
+            'bowlerUid': innings['bowler']['uid'],
+            'bowlerName': innings['bowler']['name'],
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+    }
+
+    final String battingTeamKey = match['battingTeam'];
+    final String bowlingTeamKey = battingTeamKey == 'teamA' ? 'teamB' : 'teamA';
+    final int totalPlayers = (match[battingTeamKey]['players'] as List).length;
+
+    final bool isAllOut = outPlayers.length >= totalPlayers - 1;
+    final bool oversFinished = maxOvers > 0 && (balls ~/ 6) >= maxOvers;
+
+    bool targetReached = false;
+    String? winner;
+
+    if (currentInning == 1) {
+      final int target = _i(match['target']);
+      if (totalRuns >= target) {
+        targetReached = true;
+        winner = battingTeamKey;
+      }
+    }
+
+    final bool inningsCompleted = isAllOut || oversFinished || targetReached;
+
+    if (inningsCompleted && currentInning == 1 && !targetReached) {
+      winner = bowlingTeamKey;
+    }
+
+    await FirebaseFirestore.instance
+        .collection('matches')
+        .doc(widget.matchId)
+        .update({
+          'innings.runs': totalRuns,
+          'innings.wickets': wickets,
+          'innings.balls': balls,
+          'innings.striker': innings['striker'],
+          'innings.nonStriker': innings['nonStriker'],
+          'innings.outPlayers': outPlayers,
+          'innings.isCompleted': inningsCompleted,
+          'innings.awaitingBowler': inningsCompleted ? false : overCompleted,
+          'innings.awaitingBatsman': inningsCompleted ? false : true,
+          if (winner != null) 'winner': winner,
+          if (winner != null) 'status': 'completed',
+          if (winner != null) 'winnerName': match[winner]['name'],
+          if (winner != null) 'completedAt': FieldValue.serverTimestamp(),
+        });
+
+    if (inningsCompleted && currentInning == 0) {
+      await _startSecondInnings(match);
+      return;
+    }
+
+    _lastProcessedDialogState = null;
+  }
+
   /* =========================== NEW BATSMAN =========================== */
 
   Future<void> _showNewBatsmanDialog(
-      BuildContext context,
-      Map<String, dynamic> match,
-      ) async {
+    BuildContext context,
+    Map<String, dynamic> match,
+  ) async {
     final innings = match['innings'];
     final String battingTeamKey = match['battingTeam'];
 
@@ -1308,8 +1927,11 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
     final List outPlayers = innings['outPlayers'] ?? [];
 
     final availablePlayers = players
-        .where((p) =>
-    !outPlayers.contains(p['uid']) && p['uid'] != innings['nonStriker']['uid'])
+        .where(
+          (p) =>
+              !outPlayers.contains(p['uid']) &&
+              p['uid'] != innings['nonStriker']['uid'],
+        )
         .toList();
 
     if (availablePlayers.isEmpty) return;
@@ -1346,10 +1968,13 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
 
     if (selected == null) return;
 
-    await FirebaseFirestore.instance.collection('matches').doc(widget.matchId).update({
-      'innings.striker': selected,
-      'innings.awaitingBatsman': false,
-    });
+    await FirebaseFirestore.instance
+        .collection('matches')
+        .doc(widget.matchId)
+        .update({
+          'innings.striker': selected,
+          'innings.awaitingBatsman': false,
+        });
 
     _lastProcessedDialogState = null;
   }
@@ -1357,10 +1982,14 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
   // ✅ BUG FIX #2: Save first batting team info for scorecard
   Future<void> _startSecondInnings(Map<String, dynamic> match) async {
     try {
-      final matchRef = FirebaseFirestore.instance.collection('matches').doc(widget.matchId);
+      final matchRef = FirebaseFirestore.instance
+          .collection('matches')
+          .doc(widget.matchId);
 
       final String firstBattingTeam = match['battingTeam'];
-      final String firstBowlingTeam = firstBattingTeam == 'teamA' ? 'teamB' : 'teamA';
+      final String firstBowlingTeam = firstBattingTeam == 'teamA'
+          ? 'teamB'
+          : 'teamA';
 
       final int firstInningsRuns = _i(match['innings']['runs']);
 
@@ -1497,10 +2126,7 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
       debugPrint('Error starting second innings: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1509,9 +2135,9 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
   /* =========================== BOWLER =========================== */
 
   Future<void> _showBowlerDialog(
-      BuildContext context,
-      Map<String, dynamic> match,
-      ) async {
+    BuildContext context,
+    Map<String, dynamic> match,
+  ) async {
     final innings = match['innings'];
     final String battingTeamKey = match['battingTeam'];
     final String bowlingTeamKey = battingTeamKey == 'teamA' ? 'teamB' : 'teamA';
@@ -1520,7 +2146,9 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
     final List players = match[bowlingTeamKey]['players'] ?? [];
 
     final selectable = players
-        .where((p) => previousBowler == null || p['uid'] != previousBowler['uid'])
+        .where(
+          (p) => previousBowler == null || p['uid'] != previousBowler['uid'],
+        )
         .toList();
 
     if (selectable.isEmpty) return;
@@ -1555,20 +2183,20 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
 
     if (selected == null) return;
 
-    await FirebaseFirestore.instance.collection('matches').doc(widget.matchId).update({
-      'innings.bowler': selected,
-      'innings.awaitingBowler': false,
-    });
+    await FirebaseFirestore.instance
+        .collection('matches')
+        .doc(widget.matchId)
+        .update({'innings.bowler': selected, 'innings.awaitingBowler': false});
 
     _lastProcessedDialogState = null;
   }
 
   Future<Map<String, dynamic>?> _showPlayerSelectionDialog(
-      BuildContext context,
-      String title,
-      List players,
-      String subtitle,
-      ) async {
+    BuildContext context,
+    String title,
+    List players,
+    String subtitle,
+  ) async {
     return await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
@@ -1611,9 +2239,7 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
                         ),
                         title: Text(
                           player['name'],
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () => Navigator.pop(dialogContext, player),
