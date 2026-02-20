@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-
-// ✅ Import auth service (adjust path as needed)
-// import 'package:cric_rec/core/services/auth_service.dart';
+import 'package:cric_rec/core/theme/app_theme.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -83,7 +81,6 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Future<void> _signUpWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
-
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
 
@@ -95,9 +92,9 @@ class _SignupScreenState extends State<SignupScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created successfully!'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: const Text('Account created successfully!'),
+            backgroundColor: AppTheme.primary,
           ),
         );
         Navigator.pop(context);
@@ -107,7 +104,7 @@ class _SignupScreenState extends State<SignupScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_getErrorMessage(e)),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.error,
           ),
         );
       }
@@ -123,18 +120,15 @@ class _SignupScreenState extends State<SignupScreen> {
       final result = await _authService.signInWithGoogle();
 
       if (result == null) {
-        // User cancelled
         if (mounted) setState(() => _isLoading = false);
         return;
       }
-
-      // Success - AuthGate handles navigation
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Google Sign-In failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.error,
           ),
         );
         setState(() => _isLoading = false);
@@ -161,15 +155,14 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme   = Theme.of(context).textTheme;
+    final isDark      = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
       ),
       body: Stack(
         children: [
@@ -182,40 +175,29 @@ class _SignupScreenState extends State<SignupScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Logo
+
+                      // ── Logo ──────────────────────────────────
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.green.shade50,
+                          color: colorScheme.primaryContainer,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           Icons.sports_cricket,
                           size: 80,
-                          color: Colors.green.shade700,
+                          color: colorScheme.primary,
                         ),
                       ),
                       const SizedBox(height: 32),
 
-                      // Welcome Text
-                      const Text(
-                        'Create Account',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      // ── Welcome Text ──────────────────────────
+                      Text('Create Account', style: textTheme.displaySmall),
                       const SizedBox(height: 8),
-                      Text(
-                        'Sign up to get started',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
-                      ),
+                      Text('Sign up to get started', style: textTheme.bodyLarge),
                       const SizedBox(height: 40),
 
-                      // Email Field
+                      // ── Email Field ───────────────────────────
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
@@ -229,20 +211,15 @@ class _SignupScreenState extends State<SignupScreen> {
                           }
                           return null;
                         },
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'Email',
                           hintText: 'your.email@example.com',
-                          prefixIcon: const Icon(Icons.email_outlined),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
+                          prefixIcon: Icon(Icons.email_outlined),
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Password Field
+                      // ── Password Field ────────────────────────
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
@@ -266,22 +243,14 @@ class _SignupScreenState extends State<SignupScreen> {
                                   ? Icons.visibility_off
                                   : Icons.visibility,
                             ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
+                            onPressed: () => setState(
+                                    () => _obscurePassword = !_obscurePassword),
                           ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Confirm Password Field
+                      // ── Confirm Password Field ────────────────
                       TextFormField(
                         controller: _confirmPasswordController,
                         obscureText: _obscureConfirmPassword,
@@ -306,122 +275,94 @@ class _SignupScreenState extends State<SignupScreen> {
                                   ? Icons.visibility_off
                                   : Icons.visibility,
                             ),
-                            onPressed: () {
-                              setState(() {
-                                _obscureConfirmPassword = !_obscureConfirmPassword;
-                              });
-                            },
+                            onPressed: () => setState(
+                                    () => _obscureConfirmPassword = !_obscureConfirmPassword),
                           ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
                         ),
                       ),
-
                       const SizedBox(height: 32),
 
-                      // Sign Up Button
+                      // ── Sign Up Button ────────────────────────
                       SizedBox(
                         width: double.infinity,
-                        height: 56,
+                        height: 52,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _signUpWithEmail,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade700,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
                           child: const Text(
                             'Sign Up',
                             style: TextStyle(
-                              fontSize: 18,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
                             ),
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 24),
 
-                      // Divider with OR
+                      // ── OR Divider ────────────────────────────
                       Row(
                         children: [
-                          Expanded(child: Divider(color: Colors.grey[400])),
+                          const Expanded(child: Divider()),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Text(
-                              'OR',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            child: Text('OR', style: textTheme.labelMedium),
                           ),
-                          Expanded(child: Divider(color: Colors.grey[400])),
+                          const Expanded(child: Divider()),
                         ],
                       ),
-
                       const SizedBox(height: 24),
 
-                      // Google Sign-In Button
+                      // ── Google Sign-In ────────────────────────
                       SizedBox(
                         width: double.infinity,
-                        height: 56,
+                        height: 52,
                         child: OutlinedButton.icon(
                           onPressed: _isLoading ? null : _signUpWithGoogle,
                           icon: Image.asset(
                             'assets/google_logo.png',
-                            height: 24,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
-                                Icons.login,
-                                color: Color(0xFF4285F4),
-                              );
-                            },
+                            height: 22,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.login,
+                              color: Color(0xFF4285F4),
+                            ),
                           ),
-                          label: const Text(
+                          label: Text(
                             'Continue with Google',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.w600,
-                              color: Colors.black87,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            side: BorderSide(color: Colors.grey[300]!),
+                            backgroundColor: isDark
+                                ? AppTheme.surfaceVariant
+                                : Colors.white,
+                            foregroundColor: colorScheme.onSurface,
+                            side: BorderSide(color: colorScheme.outline),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 24),
 
-                      // Login Link
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      // ── Login Link ────────────────────────────
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             'Already have an account? ',
-                            style: TextStyle(color: Colors.grey[600]),
+                            style: textTheme.bodyMedium,
                           ),
                           TextButton(
+                            key: const ValueKey('login_btn'),
                             onPressed: _isLoading
                                 ? null
                                 : () => Navigator.pop(context),
-                            child: Text(
-                              'Login',
-                              style: TextStyle(
-                                color: Colors.green.shade700,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            child: const Text('Login'),
                           ),
                         ],
                       ),
@@ -432,20 +373,22 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
           ),
 
-          // Loading Overlay
+          // ── Loading Overlay ───────────────────────
           if (_isLoading)
             Container(
               color: Colors.black54,
-              child: const Center(
+              child: Center(
                 child: Card(
                   child: Padding(
-                    padding: EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(24),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Creating account...'),
+                        CircularProgressIndicator(
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(height: 16),
+                        Text('Creating account...', style: textTheme.bodyMedium),
                       ],
                     ),
                   ),

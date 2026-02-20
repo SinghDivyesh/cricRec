@@ -232,8 +232,8 @@ class _BallByBallScreenState extends State<BallByBallScreen> {
                 ),
 
                 // ✅ IMPROVEMENT: Flexible controls section
-                Flexible(
-                  flex: 0,
+                Expanded(
+                  //flex: 0,
                   // child: ConstrainedBox(
                   //   constraints: const BoxConstraints(
                   //     minHeight: 180,
