@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:cric_rec/core/theme/app_theme.dart';
 
 import '../match/host_match_screen.dart';
 import '../match/match_details_screen.dart';
@@ -31,6 +32,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _logout() async {
+    final colorScheme = Theme.of(context).colorScheme;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -38,13 +41,14 @@ class _HomeScreenState extends State<HomeScreen> {
         content: const Text('Are you sure you want to logout?'),
         actions: [
           TextButton(
+            key: const ValueKey('cancel_logout_btn'),
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppTheme.error,
             ),
             child: const Text('Logout'),
           ),
@@ -65,13 +69,14 @@ class _HomeScreenState extends State<HomeScreen> {
         content: const Text('Are you sure you want to delete this match?'),
         actions: [
           TextButton(
+            key: const ValueKey('cancel_delete_btn'),
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppTheme.error,
             ),
             child: const Text('Delete'),
           ),
@@ -112,6 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
         content: const Text('Select the winning team:'),
         actions: [
           TextButton(
+            key: const ValueKey('cancel_complete_btn'),
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
@@ -125,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, 'tie'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.warning),
             child: const Text('Tie'),
           ),
         ],
@@ -156,6 +162,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showFilterBottomSheet() {
+    final textTheme = Theme.of(context).textTheme;
+
     showModalBottomSheet(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -166,9 +174,9 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Filter & Sort',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 16),
 
@@ -187,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
 
                 const Divider(),
-                const Text('Status', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('Status', style: textTheme.titleMedium),
                 Wrap(
                   spacing: 8,
                   children: [
@@ -227,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
 
                 const SizedBox(height: 16),
-                const Text('Ball Type', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('Ball Type', style: textTheme.titleMedium),
                 Wrap(
                   spacing: 8,
                   children: [
@@ -279,7 +287,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
       appBar: _selectedIndex == 0 ? _buildAppBar() : null,
       body: _selectedIndex == 0 ? _buildHomeContent() : _buildProfileContent(),
       bottomNavigationBar: _buildBottomNavBar(),
@@ -287,30 +294,30 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return AppBar(
       elevation: 0,
-      backgroundColor: Colors.white,
       title: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: colorScheme.primaryContainer,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               Icons.sports_cricket,
-              color: Colors.green.shade700,
+              color: colorScheme.primary,
               size: 24,
             ),
           ),
           const SizedBox(width: 12),
-          const Text(
+          Text(
             'CricRec',
-            style: TextStyle(
-              color: Colors.black87,
+            style: textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              fontSize: 24,
             ),
           ),
         ],
@@ -319,13 +326,13 @@ class _HomeScreenState extends State<HomeScreen> {
         Container(
           margin: const EdgeInsets.only(right: 12),
           decoration: BoxDecoration(
-            color: Colors.red.shade50,
+            color: AppTheme.error.withOpacity(0.15),
             borderRadius: BorderRadius.circular(12),
           ),
           child: IconButton(
             icon: Icon(
               Icons.logout_rounded,
-              color: Colors.red.shade700,
+              color: AppTheme.error,
             ),
             onPressed: _logout,
           ),
@@ -336,35 +343,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHomeContent() {
     final uid = FirebaseAuth.instance.currentUser!.uid;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Column(
       children: [
         // Search Bar
         Container(
-          color: Colors.white,
+          color: colorScheme.surface,
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     hintText: 'Search matches...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                    )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey[100],
+                    prefixIcon: Icon(Icons.search),
                   ),
                   onChanged: (value) {
                     setState(() => _searchQuery = value.toLowerCase());
@@ -374,13 +369,13 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: IconButton(
                   icon: Icon(
                     Icons.filter_list,
-                    color: Colors.green.shade700,
+                    color: colorScheme.primary,
                   ),
                   onPressed: _showFilterBottomSheet,
                 ),
@@ -394,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _ballTypeFilter != 'all' ||
             _showOnlyMyMatches)
           Container(
-            color: Colors.white,
+            color: colorScheme.surface,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Wrap(
               spacing: 8,
@@ -438,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(
                   child: CircularProgressIndicator(
-                    color: Colors.green.shade700,
+                    color: colorScheme.primary,
                   ),
                 );
               }
@@ -451,32 +446,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         padding: const EdgeInsets.all(32),
                         decoration: BoxDecoration(
-                          color: Colors.green.shade50,
+                          color: colorScheme.primaryContainer,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           Icons.sports_cricket,
                           size: 80,
-                          color: Colors.green.shade300,
+                          color: colorScheme.primary.withOpacity(0.5),
                         ),
                       ),
                       const SizedBox(height: 24),
-                      const Text(
+                      Text(
                         'No matches yet',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
+                        style: textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Tap the + button below to host your first match',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
+                        style: textTheme.bodyLarge,
                       ),
                     ],
                   ),
@@ -521,20 +509,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       Icon(
                         Icons.search_off,
                         size: 64,
-                        color: Colors.grey[400],
+                        color: colorScheme.onSurface.withOpacity(0.3),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'No matches found',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: textTheme.titleLarge,
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Try adjusting your filters',
-                        style: TextStyle(color: Colors.grey[600]),
+                        style: textTheme.bodyMedium,
                       ),
                     ],
                   ),
@@ -561,20 +546,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMatchCard(String matchId, Map<String, dynamic> data, bool isMyMatch) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     Color statusColor;
     IconData statusIcon;
 
     switch (data['status']) {
       case 'live':
-        statusColor = Colors.green;
+        statusColor = AppTheme.primary;
         statusIcon = Icons.play_circle_filled;
         break;
       case 'completed':
-        statusColor = Colors.blue;
+        statusColor = AppTheme.info;
         statusIcon = Icons.check_circle;
         break;
       default:
-        statusColor = Colors.orange;
+        statusColor = AppTheme.warning;
         statusIcon = Icons.schedule;
     }
 
@@ -592,187 +580,172 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Container(
-          color: Colors.white,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () {
-                if (isMyMatch) {
-                  // Host can access match details
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => MatchDetailsScreen(matchId: matchId),
+        child: Material(
+          color: colorScheme.surface,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              if (isMyMatch) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MatchDetailsScreen(matchId: matchId),
+                  ),
+                );
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FullScorecardScreen(matchId: matchId),
+                  ),
+                );
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // Match Icon
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  );
-                } else {
-                  // Others can only view scorecard
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FullScorecardScreen(matchId: matchId),
+                    child: Icon(
+                      Icons.sports_cricket,
+                      color: colorScheme.primary,
+                      size: 28,
                     ),
-                  );
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    // Match Icon
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.sports_cricket,
-                        color: Colors.green.shade700,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
+                  ),
+                  const SizedBox(width: 16),
 
-                    // Match Details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  data['matchName'],
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                              if (!isMyMatch)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.shade50,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    'View Only',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.blue.shade700,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.location_on,
-                                size: 16,
-                                color: Colors.grey[600],
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  data['location'],
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                Icons.sports_baseball,
-                                size: 16,
-                                color: Colors.grey[600],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                data['ballType'],
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Icon(
-                                statusIcon,
-                                size: 16,
-                                color: statusColor,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                data['status'].toString().toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (data['status'] == 'completed' && data['winnerName'] != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.emoji_events,
-                                    size: 16,
-                                    color: Colors.amber[700],
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      'Won by ${data['winnerName']}',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.amber[700],
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
+                  // Match Details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                data['matchName'],
+                                style: textTheme.titleLarge,
                               ),
                             ),
-                        ],
-                      ),
+                            if (!isMyMatch)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.info.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'View Only',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppTheme.info,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              size: 16,
+                              color: colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                data['location'],
+                                style: textTheme.bodyMedium,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.sports_baseball,
+                              size: 16,
+                              color: colorScheme.onSurface.withOpacity(0.6),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              data['ballType'],
+                              style: textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              statusIcon,
+                              size: 16,
+                              color: statusColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              data['status'].toString().toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: statusColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (data['status'] == 'completed' && data['winnerName'] != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.emoji_events,
+                                  size: 16,
+                                  color: AppTheme.warning,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    'Won by ${data['winnerName']}',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.warning,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
+                  ),
 
-                    // Arrow Icon
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                        color: Colors.grey[700],
-                      ),
+                  // Arrow Icon
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ],
-                ),
+                    child: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -791,7 +764,7 @@ class _HomeScreenState extends State<HomeScreen> {
               SlidableAction(
                 onPressed: (context) =>
                     _markAsCompleted(context, matchId, data),
-                backgroundColor: Colors.green,
+                backgroundColor: AppTheme.primary,
                 foregroundColor: Colors.white,
                 icon: Icons.check_circle,
                 label: 'Complete',
@@ -803,7 +776,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (data['status'] == 'created' || data['status'] == 'live')
               SlidableAction(
                 onPressed: (context) => _deleteMatch(context, matchId),
-                backgroundColor: Colors.red,
+                backgroundColor: AppTheme.error,
                 foregroundColor: Colors.white,
                 icon: Icons.delete,
                 label: 'Delete',
@@ -823,6 +796,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomNavBar() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       decoration: BoxDecoration(
         boxShadow: [
@@ -837,7 +812,6 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _selectedIndex,
         onTap: (index) {
           if (index == 1) {
-            // Host Match - Navigate to host screen
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -850,8 +824,7 @@ class _HomeScreenState extends State<HomeScreen> {
             });
           }
         },
-        selectedItemColor: Colors.green.shade700,
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: colorScheme.primary,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
