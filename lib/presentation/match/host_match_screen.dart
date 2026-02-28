@@ -1,3 +1,4 @@
+import 'package:cric_rec/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -29,7 +30,6 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
   }
 
   Future<void> _createMatch() async {
-    // ✅ IMPROVEMENT: Validate form before proceeding
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -41,7 +41,10 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
     if (uid == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User not authenticated')),
+          SnackBar(
+            content: const Text('User not authenticated'),
+            backgroundColor: AppTheme.error,
+          ),
         );
         setState(() => _isLoading = false);
       }
@@ -53,7 +56,6 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
     try {
       final docRef = matchesRef.doc();
 
-      // ✅ BUG FIX #3: Use 'created' status to match match_details_screen.dart
       await docRef.set({
         'matchId': docRef.id,
         'hostId': uid,
@@ -63,8 +65,8 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
         'overs': int.parse(_oversController.text),
         'ballType': _ballType,
         'playersPerTeam': int.parse(_playersPerTeamController.text),
-        'status': 'created', // ✅ Changed from 'scheduled'
-        'isTeamLocked': false, // ✅ Explicitly set
+        'status': 'created',
+        'isTeamLocked': false,
         'teamA': {
           'name': 'Team A',
           'players': [],
@@ -79,11 +81,10 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
       });
 
       if (mounted) {
-        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Match created successfully!'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: const Text('Match created successfully!'),
+            backgroundColor: AppTheme.primary,
           ),
         );
 
@@ -94,7 +95,7 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Firebase error: ${e.message}'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.error,
           ),
         );
       }
@@ -103,7 +104,7 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to create match: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.error,
           ),
         );
       }
@@ -116,6 +117,8 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Host a Match')),
       body: Stack(
@@ -127,7 +130,6 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ✅ IMPROVEMENT: Changed to TextFormField with validation
                   TextFormField(
                     controller: _matchNameController,
                     decoration: const InputDecoration(
@@ -197,7 +199,6 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // ✅ IMPROVEMENT: Better button styling
                   SizedBox(
                     height: 50,
                     child: ElevatedButton.icon(
@@ -219,12 +220,12 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
 
                   // Info card
                   Card(
-                    color: Colors.blue.shade50,
+                    color: AppTheme.info.withOpacity(0.15),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline, color: Colors.blue.shade700),
+                          Icon(Icons.info_outline, color: AppTheme.info),
                           const SizedBox(width: 12),
                           const Expanded(
                             child: Text(
@@ -244,17 +245,17 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
           // Loading overlay
           if (_isLoading)
             Container(
-              color: Colors.black54,
-              child: const Center(
+              color: colorScheme.scrim.withOpacity(0.5),
+              child: Center(
                 child: Card(
                   child: Padding(
-                    padding: EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(24),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Creating match...'),
+                        CircularProgressIndicator(color: colorScheme.primary),
+                        const SizedBox(height: 16),
+                        const Text('Creating match...'),
                       ],
                     ),
                   ),
@@ -266,7 +267,7 @@ class _HostMatchScreenState extends State<HostMatchScreen> {
     );
   }
 
-  // ✅ IMPROVEMENT: Validation functions
+  // Validation functions
   String? _validateMatchName(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'Match name is required';
