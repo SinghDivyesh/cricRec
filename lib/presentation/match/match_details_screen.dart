@@ -1,3 +1,4 @@
+import 'package:cric_rec/core/theme/app_theme.dart';
 import 'package:cric_rec/presentation/match/full_scorecard_screen.dart';
 import 'package:cric_rec/presentation/match/innings_setup_screen.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +30,7 @@ class MatchDetailsScreen extends StatelessWidget {
         ),
         actions: [
           TextButton(
+            key: const ValueKey('cancel_edit_team_btn'),
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
@@ -167,8 +169,7 @@ class MatchDetailsScreen extends StatelessWidget {
       BuildContext context,
       String battingTeam,
       ) async {
-    final bowlingTeam =
-    battingTeam == 'teamA' ? 'teamB' : 'teamA';
+    final bowlingTeam = battingTeam == 'teamA' ? 'teamB' : 'teamA';
 
     await FirebaseFirestore.instance
         .collection('matches')
@@ -213,6 +214,9 @@ class MatchDetailsScreen extends StatelessWidget {
   /* ===================== UI ===================== */
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Match Details')),
       body: StreamBuilder<DocumentSnapshot>(
@@ -222,14 +226,14 @@ class MatchDetailsScreen extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: CircularProgressIndicator(color: colorScheme.primary),
+            );
           }
 
-          final data =
-          snapshot.data!.data() as Map<String, dynamic>;
+          final data = snapshot.data!.data() as Map<String, dynamic>;
 
-          final bool isTeamLocked =
-              data['isTeamLocked'] == true;
+          final bool isTeamLocked = data['isTeamLocked'] == true;
 
           final bool isTossDone = data['toss'] != null;
 
@@ -242,8 +246,9 @@ class MatchDetailsScreen extends StatelessWidget {
             children: [
               Text(
                 data['matchName'],
-                style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold),
+                style: textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text('Location: ${data['location']}'),
               Text('Overs: ${data['overs']}'),
@@ -252,19 +257,20 @@ class MatchDetailsScreen extends StatelessWidget {
 
               const Divider(height: 32),
 
-              const Text(
+              Text(
                 'Teams',
-                style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w600),
+                style: textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
 
               Card(
                 child: ListTile(
                   title: Text(data['teamA']['name']),
                   subtitle: Text(
-                      'Players: ${teamAPlayers.length} / $requiredPlayers'),
-                  trailing:
-                  Icon(isTeamLocked ? Icons.lock : Icons.edit),
+                    'Players: ${teamAPlayers.length} / $requiredPlayers',
+                  ),
+                  trailing: Icon(isTeamLocked ? Icons.lock : Icons.edit),
                   onTap: () => _editTeamName(
                     context,
                     'teamA',
@@ -286,9 +292,9 @@ class MatchDetailsScreen extends StatelessWidget {
                 child: ListTile(
                   title: Text(data['teamB']['name']),
                   subtitle: Text(
-                      'Players: ${teamBPlayers.length} / $requiredPlayers'),
-                  trailing:
-                  Icon(isTeamLocked ? Icons.lock : Icons.edit),
+                    'Players: ${teamBPlayers.length} / $requiredPlayers',
+                  ),
+                  trailing: Icon(isTeamLocked ? Icons.lock : Icons.edit),
                   onTap: () => _editTeamName(
                     context,
                     'teamB',
@@ -312,8 +318,7 @@ class MatchDetailsScreen extends StatelessWidget {
                 ElevatedButton.icon(
                   icon: const Icon(Icons.lock),
                   label: const Text('Lock Teams'),
-                  onPressed:
-                  teamAPlayers.length == requiredPlayers &&
+                  onPressed: teamAPlayers.length == requiredPlayers &&
                       teamBPlayers.length == requiredPlayers
                       ? () => _lockTeams(context)
                       : null,
@@ -329,25 +334,25 @@ class MatchDetailsScreen extends StatelessWidget {
               ElevatedButton.icon(
                 icon: const Icon(Icons.sports_cricket),
                 label: const Text('Start Match (Toss)'),
-                onPressed:
-                (!isTossDone && isTeamLocked)
+                onPressed: (!isTossDone && isTeamLocked)
                     ? () => _showTossDialog(context, data)
                     : null,
               ),
 
-              if (isTossDone && data['status'] != 'completed')  // ADDED CONDITION
+              if (isTossDone && data['status'] != 'completed')
                 Column(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
+                        color: AppTheme.info.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppTheme.info.withOpacity(0.3),
+                        ),
                       ),
                       child: Text(
-                        '${data['toss']['battingTeam'] == 'teamA'
-                            ? data['teamA']['name']
-                            : data['teamB']['name']} is batting first',
+                        '${data['toss']['battingTeam'] == 'teamA' ? data['teamA']['name'] : data['teamB']['name']} is batting first',
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -357,11 +362,13 @@ class MatchDetailsScreen extends StatelessWidget {
                       onPressed: () => _undoToss(context),
                     ),
                     TextButton.icon(
-                      onPressed: (){
+                      onPressed: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => InningsSetupScreen(matchId: matchId),
+                            builder: (_) => InningsSetupScreen(
+                              matchId: matchId,
+                            ),
                           ),
                         );
                       },
@@ -370,7 +377,6 @@ class MatchDetailsScreen extends StatelessWidget {
                   ],
                 ),
 
-// ADD THIS NEW SECTION RIGHT AFTER THE ABOVE CODE:
               if (data['status'] == 'completed' && data['winner'] != null)
                 Column(
                   children: [
@@ -379,15 +385,18 @@ class MatchDetailsScreen extends StatelessWidget {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.green.shade400, Colors.green.shade700],
+                          colors: [
+                            AppTheme.primary.withOpacity(0.8),
+                            AppTheme.primary,
+                          ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.emoji_events,
-                            color: Colors.yellow,
+                            color: AppTheme.warning,
                             size: 48,
                           ),
                           const SizedBox(height: 8),
@@ -418,7 +427,7 @@ class MatchDetailsScreen extends StatelessWidget {
                             label: const Text('View Full Scorecard'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
-                              foregroundColor: Colors.green.shade700,
+                              foregroundColor: AppTheme.primary,
                             ),
                           ),
                         ],
@@ -478,7 +487,8 @@ class _PlayerSelectionBottomSheetState
       final battingStyle = data['battingStyle']?.toString() ?? '';
 
       // Search filter
-      if (_searchQuery.isNotEmpty && !name.contains(_searchQuery.toLowerCase())) {
+      if (_searchQuery.isNotEmpty &&
+          !name.contains(_searchQuery.toLowerCase())) {
         return false;
       }
 
@@ -488,7 +498,8 @@ class _PlayerSelectionBottomSheetState
       }
 
       // Batting style filter
-      if (_selectedBattingStyle != null && battingStyle != _selectedBattingStyle) {
+      if (_selectedBattingStyle != null &&
+          battingStyle != _selectedBattingStyle) {
         return false;
       }
 
@@ -498,6 +509,8 @@ class _PlayerSelectionBottomSheetState
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final filteredPlayers = _getFilteredPlayers();
 
     return DraggableScrollableSheet(
@@ -513,7 +526,7 @@ class _PlayerSelectionBottomSheetState
               // Header
               Text(
                 'Add Players',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: textTheme.titleLarge,
               ),
               const SizedBox(height: 12),
 
@@ -600,7 +613,8 @@ class _PlayerSelectionBottomSheetState
                       selected: _selectedBattingStyle == 'Left Hand Bat',
                       onSelected: (selected) {
                         setState(() {
-                          _selectedBattingStyle = selected ? 'Left Hand Bat' : null;
+                          _selectedBattingStyle =
+                          selected ? 'Left Hand Bat' : null;
                         });
                       },
                     ),
@@ -610,7 +624,8 @@ class _PlayerSelectionBottomSheetState
                       selected: _selectedBattingStyle == 'Right Hand Bat',
                       onSelected: (selected) {
                         setState(() {
-                          _selectedBattingStyle = selected ? 'Right Hand Bat' : null;
+                          _selectedBattingStyle =
+                          selected ? 'Right Hand Bat' : null;
                         });
                       },
                     ),
@@ -622,7 +637,7 @@ class _PlayerSelectionBottomSheetState
               // Selected count
               Text(
                 '${widget.selectedUids.length} / ${widget.maxPlayers} players selected',
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: textTheme.bodyMedium,
               ),
               const SizedBox(height: 12),
 
@@ -639,11 +654,15 @@ class _PlayerSelectionBottomSheetState
                     final doc = filteredPlayers[index];
                     final uid = doc.id;
                     final data = doc.data() as Map<String, dynamic>;
-                    final name = (data['fullName'] ?? 'Unnamed Player').toString();
-                    final playingRole = data['playingRole']?.toString() ?? 'N/A';
-                    final battingStyle = data['battingStyle']?.toString() ?? 'N/A';
+                    final name =
+                    (data['fullName'] ?? 'Unnamed Player').toString();
+                    final playingRole =
+                        data['playingRole']?.toString() ?? 'N/A';
+                    final battingStyle =
+                        data['battingStyle']?.toString() ?? 'N/A';
 
-                    final bool isSelected = widget.selectedUids.contains(uid);
+                    final bool isSelected =
+                    widget.selectedUids.contains(uid);
                     final bool isBlocked =
                         widget.opponentUids.contains(uid) && !isSelected;
 
@@ -655,13 +674,17 @@ class _PlayerSelectionBottomSheetState
                           decoration: isBlocked
                               ? TextDecoration.lineThrough
                               : TextDecoration.none,
-                          color: isBlocked ? Colors.grey : null,
+                          color: isBlocked
+                              ? colorScheme.onSurface.withOpacity(0.4)
+                              : null,
                         ),
                       ),
                       subtitle: Text(
                         '$playingRole • $battingStyle',
                         style: TextStyle(
-                          color: isBlocked ? Colors.grey : null,
+                          color: isBlocked
+                              ? colorScheme.onSurface.withOpacity(0.4)
+                              : null,
                         ),
                       ),
                       onChanged: isBlocked
@@ -669,7 +692,8 @@ class _PlayerSelectionBottomSheetState
                           : (checked) {
                         setState(() {
                           if (checked == true) {
-                            if (widget.selectedUids.length < widget.maxPlayers) {
+                            if (widget.selectedUids.length <
+                                widget.maxPlayers) {
                               widget.selectedUids.add(uid);
                             }
                           } else {
