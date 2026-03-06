@@ -1,3 +1,4 @@
+import 'package:cric_rec/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -30,11 +31,13 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: const Text('Leaderboards'),
-        backgroundColor: Colors.orange.shade700,
+        backgroundColor: AppTheme.warning,
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
@@ -67,11 +70,15 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
   }
 
   Widget _buildLeaderboardTab(String category) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return FutureBuilder<List<LeaderboardEntry>>(
       future: _getLeaderboardData(category),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+            child: CircularProgressIndicator(color: colorScheme.primary),
+          );
         }
 
         if (snapshot.hasError) {
@@ -79,7 +86,7 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                Icon(Icons.error_outline, size: 64, color: AppTheme.error),
                 const SizedBox(height: 16),
                 const Text(
                   'Failed to load leaderboard',
@@ -89,7 +96,9 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
                 Text(
                   snapshot.error.toString(),
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[600]),
+                  style: TextStyle(
+                    color: colorScheme.onSurface.withOpacity(0.6),
+                  ),
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
@@ -112,13 +121,13 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
                 Container(
                   padding: const EdgeInsets.all(32),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
+                    color: AppTheme.warning.withOpacity(0.15),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.emoji_events,
                     size: 80,
-                    color: Colors.orange.shade300,
+                    color: AppTheme.warning,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -134,7 +143,7 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
                   'Play some matches to see rankings!',
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.grey[600],
+                    color: colorScheme.onSurface.withOpacity(0.6),
                   ),
                 ),
               ],
@@ -163,7 +172,6 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
   }
 
   Future<List<LeaderboardEntry>> _getLeaderboardData(String category) async {
-
     switch (category) {
       case 'runs':
         return await _leaderboardService.getTopRunScorers();
@@ -178,8 +186,6 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
       default:
         return [];
     }
-
-
   }
 
   Widget _buildLeaderboardCard({
@@ -187,6 +193,7 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
     required int rank,
     required String category,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final isCurrentUser = entry.playerId == currentUserId;
 
@@ -207,22 +214,24 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
         rankIcon = Icons.emoji_events;
         break;
       default:
-        rankColor = Colors.grey.shade400;
+        rankColor = colorScheme.onSurface.withOpacity(0.4);
         rankIcon = Icons.circle;
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isCurrentUser ? Colors.green.shade50 : Colors.white,
+        color: isCurrentUser
+            ? colorScheme.primaryContainer
+            : colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isCurrentUser ? Colors.green.shade300 : Colors.transparent,
-          width: 2,
+          color: isCurrentUser ? colorScheme.primary : colorScheme.outline,
+          width: isCurrentUser ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: colorScheme.shadow.withOpacity(0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -272,8 +281,8 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: isCurrentUser
-                                ? Colors.green.shade700
-                                : Colors.black87,
+                                ? colorScheme.primary
+                                : colorScheme.onSurface,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -285,7 +294,7 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.green.shade700,
+                            color: colorScheme.primary,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text(
@@ -304,7 +313,7 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
                     _getCategoryLabel(category),
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey[600],
+                      color: colorScheme.onSurface.withOpacity(0.6),
                     ),
                   ),
                 ],
@@ -356,15 +365,15 @@ class _LeaderboardsScreenState extends State<LeaderboardsScreen>
   Color _getCategoryColor(String category) {
     switch (category) {
       case 'runs':
-        return Colors.green.shade700;
+        return AppTheme.primary;
       case 'wickets':
-        return Colors.red.shade700;
+        return AppTheme.wicketRed;
       case 'strikeRate':
-        return Colors.blue.shade700;
+        return AppTheme.info;
       case 'economy':
-        return Colors.purple.shade700;
+        return AppTheme.boundarySix;
       case 'matches':
-        return Colors.orange.shade700;
+        return AppTheme.warning;
       default:
         return Colors.grey.shade700;
     }
