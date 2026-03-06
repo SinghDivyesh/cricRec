@@ -234,4 +234,5 @@ class _InningsSetupScreenState extends State<InningsSetupScreen> {
     return (data[teamKey]['players'] as List)
         .firstWhere((p) => p['uid'] == uid);
   }
+
 }

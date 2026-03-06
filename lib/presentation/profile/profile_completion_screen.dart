@@ -334,4 +334,5 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
       ),
     );
   }
+
 }
