@@ -471,15 +471,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 👥 Authors
 
-**Project Team**
-- Student 1 - [GitHub](https://github.com/student1) - student1@example.com
-- Student 2 - [GitHub](https://github.com/student2) - student2@example.com
-- Student 3 - [GitHub](https://github.com/student3) - student3@example.com
-
-**Project Guide**
-- Guide Name - guide@college.edu
-
----
+-  [GitHub]([https://github.com/SinghDivyesh)] - singhdivyesh85@gmail.com
 
 ## 🎓 Academic Information
 
@@ -504,13 +496,6 @@ Academic Year: 2025-2026
 
 ---
 
-## 📞 Contact & Support
-
-- **Project Repository**: [https://github.com/yourusername/cricrec](https://github.com/yourusername/cricrec)
-- **Issues**: [Report a Bug](https://github.com/yourusername/cricrec/issues)
-- **Email**: cricrec@example.com
-
----
 
 ## ⭐ Show Your Support
 
